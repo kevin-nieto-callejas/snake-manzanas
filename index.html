@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#07111f">
+  <title>Snake Clásico</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="game-shell">
+    <header>
+      <p class="eyebrow">COME Y CRECE — ¡PERO CUIDADO!</p>
+      <h1>SNAKE <span>CLÁSICO</span></h1>
+    </header>
+
+    <section class="scoreboard" aria-label="Marcador">
+      <p>PUNTOS <strong id="score">0</strong></p>
+      <p>LONGITUD <strong id="length">4</strong></p>
+    </section>
+
+    <div class="board-wrap">
+      <canvas id="game" width="600" height="600" aria-label="Tablero de Snake"></canvas>
+      <div id="start-screen" class="overlay">
+        <div>
+          <h2>¿LISTO?</h2>
+          <p>Usa las flechas para comenzar</p>
+        </div>
+      </div>
+      <div id="game-over" class="overlay hidden" role="dialog" aria-modal="true">
+        <div>
+          <h2>PERDISTE</h2>
+          <p id="final-score">Puntuación: 0</p>
+          <button id="restart" type="button">VOLVER A JUGAR</button>
+        </div>
+      </div>
+    </div>
+
+    <aside class="instructions">
+      <div class="legend-item"><span class="apple-icon">●</span><span>Manzana: creces 1 segmento</span></div>
+      <div class="legend-item"><span class="apple-icon wormy">●<i>〰</i></span><span>Con gusano: quedas a la mitad</span></div>
+      <div class="keys" aria-label="Controles">← ↑ ↓ →</div>
+    </aside>
+  </main>
+  <script src="script.js"></script>
+</body>
+</html>

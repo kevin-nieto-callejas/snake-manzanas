@@ -1,0 +1,124 @@
+:root {
+  color-scheme: dark;
+  --bg: #050c16;
+  --panel: #091522;
+  --line: #26394d;
+  --green: #a8df42;
+  --green-dark: #487c22;
+  --red: #ed493b;
+  --text: #f4f7f2;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 50% 0%, #10273a 0, transparent 42%),
+    var(--bg);
+  font-family: "Courier New", monospace;
+}
+
+.game-shell { width: min(94vw, 680px); }
+
+header { text-align: center; margin-bottom: 18px; }
+
+h1 {
+  margin: 0;
+  color: #d1ed4c;
+  font-size: clamp(2.3rem, 8vw, 4.5rem);
+  line-height: .95;
+  letter-spacing: .04em;
+  text-shadow: 0 5px 0 #416c21, 0 0 24px #80c83255;
+}
+
+h1 span { color: #91cc3a; }
+.eyebrow { margin: 0 0 10px; font-weight: 700; letter-spacing: .12em; }
+
+.scoreboard {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 18px;
+  border: 2px solid var(--green-dark);
+  border-radius: 8px 8px 0 0;
+  background: #07111dcc;
+  box-shadow: inset 0 0 0 2px #14283a;
+}
+
+.scoreboard p { margin: 0; font-weight: 700; }
+.scoreboard strong { margin-left: 8px; color: var(--green); }
+
+.board-wrap {
+  position: relative;
+  overflow: hidden;
+  border: 4px solid #6fae2e;
+  box-shadow: 0 0 0 3px #173e33, 0 15px 50px #0008;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #07111d;
+  image-rendering: pixelated;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  text-align: center;
+  background: #030912b8;
+  backdrop-filter: blur(2px);
+}
+
+.overlay.hidden { display: none; }
+.overlay h2 { margin: 0 0 10px; color: var(--green); font-size: 2.3rem; }
+.overlay p { margin: 0 0 22px; }
+
+button {
+  padding: 13px 20px;
+  border: 2px solid #c9eb53;
+  border-radius: 5px;
+  color: #08111c;
+  background: var(--green);
+  font: 700 1rem "Courier New", monospace;
+  cursor: pointer;
+  box-shadow: 0 5px 0 #426f20;
+}
+
+button:hover { filter: brightness(1.12); transform: translateY(-1px); }
+button:active { transform: translateY(3px); box-shadow: 0 2px 0 #426f20; }
+
+.instructions {
+  display: grid;
+  grid-template-columns: 1fr 1.35fr auto;
+  gap: 16px;
+  align-items: center;
+  margin-top: 18px;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #091522cc;
+  font-size: .83rem;
+}
+
+.legend-item { display: flex; align-items: center; gap: 9px; }
+.apple-icon { position: relative; color: var(--red); font-size: 2rem; line-height: 1; text-shadow: 2px 2px #912c28; }
+.apple-icon::before { content: "⌁"; position: absolute; top: -12px; left: 8px; color: #8ed335; font-size: 1rem; }
+.apple-icon i { position: absolute; right: -3px; top: 5px; color: #f2c4a0; font-size: .55rem; font-style: normal; text-shadow: 0 1px #4d1c16; }
+.keys { color: var(--green); font-size: 1.35rem; font-weight: 900; white-space: nowrap; }
+
+@media (max-width: 600px) {
+  body { padding: 12px; }
+  .instructions { grid-template-columns: 1fr; }
+  .keys { text-align: center; }
+  .eyebrow { font-size: .78rem; }
+}
