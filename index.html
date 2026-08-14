@@ -15,27 +15,43 @@
     </header>
 
     <section class="scoreboard" aria-label="Marcador">
-      <p>PUNTOS <strong id="score">0</strong></p>
-      <p>LONGITUD <strong id="length">4</strong></p>
+      <p class="stat" title="Mundo actual"><span class="stat-ico">🌍</span><strong id="world-name">—</strong></p>
+      <p class="stat" title="Cosecha"><span class="stat-ico">🍎</span><strong id="harvest">0/0</strong></p>
+      <p class="stat" title="Vidas"><span class="stat-ico">❤</span><strong id="lives">3</strong></p>
+      <p class="stat" title="Puntos"><span class="stat-ico">★</span><strong id="score">0</strong></p>
     </section>
 
     <div class="board-card">
       <canvas id="game" aria-label="Tablero de Snake"></canvas>
+
       <div id="start-screen" class="overlay">
-        <div>
-          <h2>¿LISTO?</h2>
-          <p>Usa las flechas, el swipe o el D-pad para comenzar</p>
+        <div class="overlay-panel">
+          <h2>ELIGE TU MUNDO</h2>
+          <div class="world-select" id="world-select"></div>
+          <p class="hint">Toca un mundo desbloqueado para empezar</p>
+          <p class="best-score">Mejor puntaje: <strong id="best-score">0</strong></p>
         </div>
       </div>
+
       <div id="pause-screen" class="overlay hidden" role="dialog" aria-modal="true">
         <div>
           <h2>PAUSA</h2>
           <p>Toca para continuar</p>
         </div>
       </div>
+
+      <div id="world-transition" class="overlay hidden" role="dialog" aria-modal="true">
+        <div>
+          <p class="eyebrow">¡COSECHA COMPLETA!</p>
+          <h2 id="next-world-name">Siguiente mundo</h2>
+          <p id="next-world-tip">Tip del mundo</p>
+          <button id="transition-continue" type="button">CONTINUAR</button>
+        </div>
+      </div>
+
       <div id="game-over" class="overlay hidden" role="dialog" aria-modal="true">
         <div>
-          <h2>PERDISTE</h2>
+          <h2 id="game-over-title">PERDISTE</h2>
           <p id="final-score">Puntuación: 0</p>
           <button id="restart" type="button">VOLVER A JUGAR</button>
         </div>
@@ -50,8 +66,8 @@
     </div>
 
     <aside class="instructions">
-      <div class="legend-item"><span class="apple-icon">●</span><span>Manzana: creces 1 segmento</span></div>
-      <div class="legend-item"><span class="apple-icon wormy">●<i>〰</i></span><span>Con gusano: quedas a la mitad</span></div>
+      <div class="legend-item"><span class="apple-icon">●</span><span>Manzana: creces 1 segmento y suma cosecha</span></div>
+      <div class="legend-item"><span class="apple-icon wormy">●<i>〰</i></span><span>Con gusano: a la mitad y −1 cosecha</span></div>
       <div class="keys" aria-label="Controles">← ↑ ↓ →</div>
     </aside>
   </main>
