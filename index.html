@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#07111f">
   <title>Snake Clásico</title>
   <link rel="stylesheet" href="styles.css">
@@ -19,12 +19,18 @@
       <p>LONGITUD <strong id="length">4</strong></p>
     </section>
 
-    <div class="board-wrap">
-      <canvas id="game" width="600" height="600" aria-label="Tablero de Snake"></canvas>
+    <div class="board-card">
+      <canvas id="game" aria-label="Tablero de Snake"></canvas>
       <div id="start-screen" class="overlay">
         <div>
           <h2>¿LISTO?</h2>
-          <p>Usa las flechas para comenzar</p>
+          <p>Usa las flechas, el swipe o el D-pad para comenzar</p>
+        </div>
+      </div>
+      <div id="pause-screen" class="overlay hidden" role="dialog" aria-modal="true">
+        <div>
+          <h2>PAUSA</h2>
+          <p>Toca para continuar</p>
         </div>
       </div>
       <div id="game-over" class="overlay hidden" role="dialog" aria-modal="true">
@@ -34,6 +40,13 @@
           <button id="restart" type="button">VOLVER A JUGAR</button>
         </div>
       </div>
+    </div>
+
+    <div class="dpad" aria-label="Controles direccionales">
+      <button type="button" class="dpad-btn dpad-up" data-dir="up" aria-label="Arriba">↑</button>
+      <button type="button" class="dpad-btn dpad-left" data-dir="left" aria-label="Izquierda">←</button>
+      <button type="button" class="dpad-btn dpad-right" data-dir="right" aria-label="Derecha">→</button>
+      <button type="button" class="dpad-btn dpad-down" data-dir="down" aria-label="Abajo">↓</button>
     </div>
 
     <aside class="instructions">

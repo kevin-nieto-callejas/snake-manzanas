@@ -53,9 +53,12 @@ h1 span { color: #91cc3a; }
 .scoreboard p { margin: 0; font-weight: 700; }
 .scoreboard strong { margin-left: 8px; color: var(--green); }
 
-.board-wrap {
+.board-card {
   position: relative;
   overflow: hidden;
+  width: min(92vw, 70dvh);
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
   border: 4px solid #6fae2e;
   box-shadow: 0 0 0 3px #173e33, 0 15px 50px #0008;
 }
@@ -63,9 +66,9 @@ h1 span { color: #91cc3a; }
 canvas {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
   background: #07111d;
-  image-rendering: pixelated;
+  touch-action: none;
 }
 
 .overlay {
@@ -116,9 +119,51 @@ button:active { transform: translateY(3px); box-shadow: 0 2px 0 #426f20; }
 .apple-icon i { position: absolute; right: -3px; top: 5px; color: #f2c4a0; font-size: .55rem; font-style: normal; text-shadow: 0 1px #4d1c16; }
 .keys { color: var(--green); font-size: 1.35rem; font-weight: 900; white-space: nowrap; }
 
+.dpad {
+  display: none;
+  grid-template-columns: repeat(3, 52px);
+  grid-template-rows: repeat(3, 52px);
+  gap: 6px;
+  justify-content: center;
+  margin: 14px auto 0;
+}
+
+.dpad-btn {
+  min-width: 44px;
+  min-height: 44px;
+  border: 2px solid var(--green-dark);
+  border-radius: 8px;
+  background: #0e1c2b;
+  color: var(--green);
+  font-size: 1.4rem;
+  font-weight: 900;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.dpad-btn:active { background: var(--green-dark); }
+.dpad-up    { grid-area: 1 / 2 / 2 / 3; }
+.dpad-left  { grid-area: 2 / 1 / 3 / 2; }
+.dpad-right { grid-area: 2 / 3 / 3 / 4; }
+.dpad-down  { grid-area: 3 / 2 / 4 / 3; }
+
+@media (pointer: coarse), (max-width: 700px) {
+  .dpad { display: grid; }
+}
+
 @media (max-width: 600px) {
   body { padding: 12px; }
-  .instructions { grid-template-columns: 1fr; }
+  .game-shell { display: flex; flex-direction: column; gap: 10px; }
+  header { margin-bottom: 0; }
+  .scoreboard { padding: 8px 14px; font-size: .82rem; }
+  .instructions { grid-template-columns: 1fr; padding: 10px 14px; }
+  .instructions .keys { display: none; }
   .keys { text-align: center; }
   .eyebrow { font-size: .78rem; }
+}
+
+@media (max-height: 640px) {
+  .instructions { display: none; }
 }
