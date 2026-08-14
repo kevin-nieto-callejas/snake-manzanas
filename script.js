@@ -13,7 +13,38 @@ const restartButton = document.querySelector("#restart");
 const dpadButtons = document.querySelectorAll(".dpad-btn");
 
 const CELLS = 20;
-const TICK_MS = 115;
+
+// Configuración de cada mundo de la campaña. Un flag apagado es 0 o
+// false: update()/draw() deben preguntar siempre por la capacidad
+// (ej. "if (world.gusanoCazador)"), nunca por el id del mundo.
+// muros/obstaculos/madura/gusanoCazador/rastro se conectan en las
+// fases que introducen esas mecánicas (progresión y mecánicas); por
+// ahora solo hay un mundo jugable y se comporta igual que antes.
+const WORLDS = [
+  { id: 1, nombre: "El Huerto", meta: 12, tickMs: 115,
+    muros: "solidos", obstaculos: 0, manzanas: 3,
+    madura: 70, gusanoCazador: false, rastro: 0,
+    tip: "Las manzanas se pudren si tardas." },
+
+  { id: 2, nombre: "La Bodega", meta: 15, tickMs: 125,
+    muros: "wrap", obstaculos: 4, manzanas: 3,
+    madura: 0, gusanoCazador: true, rastro: 0,
+    tip: "El gusano compite por tu cosecha." },
+
+  { id: 3, nombre: "El Manzano Podrido", meta: 18, tickMs: 135,
+    muros: "solidos", obstaculos: 0, manzanas: 4,
+    madura: 0, gusanoCazador: false, rastro: 12,
+    tip: "Tu propio rastro te envenena." },
+
+  { id: 4, nombre: "Cosecha Infinita", meta: Infinity, tickMs: 120,
+    muros: "wrap", obstaculos: 4, manzanas: 4,
+    madura: 60, gusanoCazador: true, rastro: 14,
+    tip: "Todo a la vez. Sobrevive." }
+];
+
+// La selección de mundo llega en la fase de progresión; por ahora
+// siempre se juega El Huerto.
+const world = WORLDS[0];
 
 // Tamaño en píxeles del tablero y de cada celda: se recalculan en cada
 // resize, nunca son constantes fijas (así el canvas es nítido en
@@ -74,8 +105,7 @@ function resetGame() {
   running = false;
   paused = false;
   apples = [];
-  spawnApple(false);
-  spawnApple(false);
+  for (let i = 0; i < world.manzanas - 1; i++) spawnApple(false);
   spawnApple(true);
   updateHud();
   gameOverScreen.classList.add("hidden");
@@ -124,9 +154,9 @@ function frame(now) {
   const dt = Math.min(now - last, 250);
   acc += dt;
   last = now;
-  while (acc >= TICK_MS) {
+  while (acc >= world.tickMs) {
     update();
-    acc -= TICK_MS;
+    acc -= world.tickMs;
     if (!running) break;
   }
   draw();
