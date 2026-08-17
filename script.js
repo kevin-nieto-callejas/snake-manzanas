@@ -28,6 +28,10 @@ const CELLS = 20;
 // Configuración de cada mundo de la campaña. Un flag apagado es 0 o
 // false: update()/draw() deben preguntar siempre por la capacidad
 // (ej. "if (world.gusanoCazador)"), nunca por el id del mundo.
+// Números más frágiles para calibrar: madura (ticks hasta que una
+// manzana se pudre sola) y rastro (ticks que una celda pisada queda
+// mortal). Están aquí arriba a propósito para tocarlos sin buscar
+// en el resto del archivo.
 const WORLDS = [
   { id: 1, nombre: "El Huerto", meta: 12, tickMs: 115,
     muros: "solidos", obstaculos: 0, manzanas: 3,
