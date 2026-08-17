@@ -50,6 +50,12 @@ const WORLDS = [
     tip: "Todo a la vez. Sobrevive." }
 ];
 
+// Posiciones fijas y simétricas de las cajas-obstáculo. Nunca quedan
+// adyacentes a la serpiente inicial (fila y=10, columnas x=7..10).
+const OBSTACULOS_FIJOS = [
+  { x: 4, y: 4 }, { x: 15, y: 4 }, { x: 4, y: 15 }, { x: 15, y: 15 }
+];
+
 const VIDAS_POR_MUNDO = 3;
 const PENALIZACION_REINICIO = 25;
 
@@ -115,6 +121,14 @@ let acc = 0;
 let last = 0;
 let transitionTimer = null;
 
+// Estado de las mecánicas por capacidad: vacío/nulo cuando el mundo
+// activo no tiene esa capacidad, sin que el resto del código necesite
+// preguntar por el id del mundo.
+let obstaculos = [];
+let trail = new Map(); // "x,y" -> tick en que deja de ser mortal
+let gusano = null;
+let tickCount = 0;
+
 function lerp(a, b, t) {
   return a + (b - a) * t;
 }
@@ -157,11 +171,15 @@ function crearSerpienteInicial() {
 // Deja el juego pausado a la espera de la primera dirección.
 function prepararTablero() {
   cancelLoop();
+  tickCount = 0;
   snake = crearSerpienteInicial();
   direction = "right";
   directionQueue = [];
   running = false;
   paused = false;
+  trail = new Map();
+  obstaculos = world.obstaculos ? OBSTACULOS_FIJOS.slice(0, world.obstaculos) : [];
+  gusano = world.gusanoCazador ? crearGusano() : null;
   apples = [];
   for (let i = 0; i < world.manzanas - 1; i++) spawnApple(false);
   spawnApple(true);
@@ -176,6 +194,7 @@ function prepararTablero() {
 function entrarMundo(index) {
   worldIndex = index;
   world = WORLDS[worldIndex];
+  score = 0;
   cosecha = 0;
   vidas = VIDAS_POR_MUNDO;
   prepararTablero();
@@ -220,15 +239,45 @@ function elegirMundo(index) {
   startScreen.classList.add("hidden");
 }
 
+function crearGusano() {
+  const x0 = 10, y0 = 2;
+  return {
+    segments: [{ x: x0, y: y0 }, { x: x0 - 1, y: y0 }, { x: x0 - 2, y: y0 }],
+    contador: 0,
+    objetivo: null
+  };
+}
+
+function celdaLibre(pos) {
+  if (snake.some(part => sameCell(part, pos))) return false;
+  if (apples.some(apple => sameCell(apple, pos))) return false;
+  if (obstaculos.some(o => sameCell(o, pos))) return false;
+  if (trail.has(`${pos.x},${pos.y}`)) return false;
+  if (gusano && gusano.segments.some(seg => sameCell(seg, pos))) return false;
+  return true;
+}
+
+// Intenta celdas al azar y, si el tablero está saturado (rastro u
+// obstáculos), cae a un barrido completo. Si tampoco así hay hueco,
+// no agrega manzana este intento en vez de entrar en bucle infinito.
+function buscarCeldaLibre() {
+  for (let intento = 0; intento < 200; intento++) {
+    const candidato = { x: Math.floor(Math.random() * CELLS), y: Math.floor(Math.random() * CELLS) };
+    if (celdaLibre(candidato)) return candidato;
+  }
+  const libres = [];
+  for (let x = 0; x < CELLS; x++) {
+    for (let y = 0; y < CELLS; y++) {
+      if (celdaLibre({ x, y })) libres.push({ x, y });
+    }
+  }
+  return libres.length ? libres[Math.floor(Math.random() * libres.length)] : null;
+}
+
 function spawnApple(worm) {
-  let position;
-  do {
-    position = {
-      x: Math.floor(Math.random() * CELLS),
-      y: Math.floor(Math.random() * CELLS)
-    };
-  } while (snake.some(part => sameCell(part, position)) || apples.some(apple => sameCell(apple, position)));
-  apples.push({ ...position, worm });
+  const position = buscarCeldaLibre();
+  if (!position) return;
+  apples.push({ ...position, worm, bornTick: tickCount });
 }
 
 function encolarDir(dirName) {
@@ -272,17 +321,102 @@ function frame(now) {
   }
 }
 
+// Mundo 1: cada manzana sana lleva su reloj de maduración; al agotarse
+// se pudre sola (se vuelve manzana con gusano) sin intervención del
+// jugador.
+function actualizarMaduracion() {
+  if (!world.madura) return;
+  apples.forEach(apple => {
+    if (!apple.worm && tickCount - apple.bornTick >= world.maduraActual) {
+      apple.worm = true;
+    }
+  });
+}
+
+// Mundo 3: purga las celdas de rastro ya vencidas. Solo recorre las
+// entradas activas del Map, nunca la cuadrícula completa.
+function purgarRastro() {
+  if (!trail.size) return;
+  for (const [key, expira] of trail) {
+    if (expira <= tickCount) trail.delete(key);
+  }
+}
+
+function manzanaSanaMasCercana(desde) {
+  let mejor = null;
+  let mejorDist = Infinity;
+  apples.forEach(apple => {
+    if (apple.worm) return;
+    const dist = Math.abs(apple.x - desde.x) + Math.abs(apple.y - desde.y);
+    if (dist < mejorDist) { mejorDist = dist; mejor = apple; }
+  });
+  return mejor;
+}
+
+function celdaLibreParaGusano(pos) {
+  if (pos.x < 0 || pos.x >= CELLS || pos.y < 0 || pos.y >= CELLS) return false;
+  if (snake.some(part => sameCell(part, pos))) return false;
+  if (obstaculos.some(o => sameCell(o, pos))) return false;
+  if (gusano.segments.some(seg => sameCell(seg, pos))) return false;
+  return true;
+}
+
+// Mundo 2: greedy que reduce distancia Manhattan hacia la manzana sana
+// más cercana, priorizando el eje con mayor distancia restante. Si
+// ambos ejes están bloqueados (serpiente/obstáculo), se queda quieto.
+function moverGusano() {
+  const objetivo = manzanaSanaMasCercana(gusano.segments[0]);
+  gusano.objetivo = objetivo;
+  if (!objetivo) return;
+
+  const head = gusano.segments[0];
+  const dx = objetivo.x - head.x;
+  const dy = objetivo.y - head.y;
+  const pasoX = dx !== 0 ? { x: head.x + Math.sign(dx), y: head.y } : null;
+  const pasoY = dy !== 0 ? { x: head.x, y: head.y + Math.sign(dy) } : null;
+  const opciones = Math.abs(dx) >= Math.abs(dy) ? [pasoX, pasoY] : [pasoY, pasoX];
+
+  const siguiente = opciones
+    .filter(Boolean)
+    .map(pos => world.muros === "wrap" ? { x: (pos.x + CELLS) % CELLS, y: (pos.y + CELLS) % CELLS } : pos)
+    .find(celdaLibreParaGusano);
+  if (!siguiente) return;
+
+  gusano.segments.unshift(siguiente);
+  gusano.segments.pop();
+  const comida = apples.find(apple => !apple.worm && sameCell(apple, siguiente));
+  if (comida) comida.worm = true;
+}
+
+function actualizarGusano() {
+  if (!world.gusanoCazador || !gusano) return;
+  gusano.contador += 1;
+  if (gusano.contador < world.gusanoCada) return;
+  gusano.contador = 0;
+  moverGusano();
+}
+
 function update() {
+  tickCount += 1;
+  purgarRastro();
+  actualizarMaduracion();
+  actualizarGusano();
+
   if (directionQueue.length) direction = directionQueue.shift();
   const vec = DIR_VECTORS[direction];
-  const head = {
+  let head = {
     x: snake[0].x + vec.x,
     y: snake[0].y + vec.y
   };
+  if (world.muros === "wrap") {
+    head = { x: (head.x + CELLS) % CELLS, y: (head.y + CELLS) % CELLS };
+  }
 
-  const hitWall = head.x < 0 || head.x >= CELLS || head.y < 0 || head.y >= CELLS;
+  const hitWall = world.muros !== "wrap" && (head.x < 0 || head.x >= CELLS || head.y < 0 || head.y >= CELLS);
   const hitSelf = snake.some(part => sameCell(part, head));
-  if (hitWall || hitSelf) return endGame();
+  const hitObstaculo = obstaculos.some(o => sameCell(o, head));
+  const hitRastro = trail.has(`${head.x},${head.y}`);
+  if (hitWall || hitSelf || hitObstaculo || hitRastro) return endGame();
 
   snake.unshift(head);
   const appleIndex = apples.findIndex(apple => sameCell(apple, head));
@@ -304,7 +438,8 @@ function update() {
     updateHud();
     if (cosecha >= world.meta) return completarMundo();
   } else {
-    snake.pop();
+    const cola = snake.pop();
+    if (world.rastro) trail.set(`${cola.x},${cola.y}`, tickCount + world.rastroActual);
   }
 }
 
@@ -386,8 +521,93 @@ function draw() {
     ctx.stroke();
   }
 
+  obstaculos.forEach(drawObstaculo);
+  trail.forEach((expira, key) => drawRastro(key, expira));
   apples.forEach(drawApple);
+  drawGusano();
   snake.forEach((part, index) => drawSnakePart(part, index === 0));
+}
+
+function drawObstaculo(pos) {
+  const x = pos.x * cell + cell * 0.08;
+  const y = pos.y * cell + cell * 0.08;
+  const size = cell * 0.84;
+  roundedRect(x, y, size, size, cell * 0.08);
+  ctx.fillStyle = "#4a3826";
+  ctx.fill();
+  ctx.strokeStyle = "#241609";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.strokeStyle = "#6b5236";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x, y); ctx.lineTo(x + size, y + size);
+  ctx.moveTo(x + size, y); ctx.lineTo(x, y + size);
+  ctx.stroke();
+}
+
+// Mundo 3: opacidad decreciente conforme la celda está por liberarse,
+// para que el jugador vea qué va a dejar de ser mortal pronto.
+function drawRastro(key, expira) {
+  const [xs, ys] = key.split(",");
+  const x = Number(xs);
+  const y = Number(ys);
+  const restante = Math.max(0, expira - tickCount);
+  const opacidad = Math.min(1, restante / world.rastroActual) * 0.55;
+  ctx.fillStyle = `rgba(120, 200, 90, ${opacidad})`;
+  ctx.fillRect(x * cell, y * cell, cell, cell);
+}
+
+function drawGusano() {
+  if (!world.gusanoCazador || !gusano) return;
+  if (gusano.objetivo) {
+    const head = gusano.segments[0];
+    ctx.save();
+    ctx.setLineDash([4, 5]);
+    ctx.strokeStyle = "rgba(180,180,70,.45)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(head.x * cell + cell / 2, head.y * cell + cell / 2);
+    ctx.lineTo(gusano.objetivo.x * cell + cell / 2, gusano.objetivo.y * cell + cell / 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+  gusano.segments.forEach((seg, index) => {
+    const inset = index === 0 ? cell * 0.1 : cell * 0.18;
+    const x = seg.x * cell + inset;
+    const y = seg.y * cell + inset;
+    const size = cell - inset * 2;
+    roundedRect(x, y, size, size, cell * 0.15);
+    ctx.fillStyle = index === 0 ? "#8c8c3e" : "#6b6b2a";
+    ctx.fill();
+    ctx.strokeStyle = "#3f3f18";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  });
+}
+
+function hexANumeros(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function mezclarColor(hexA, hexB, t) {
+  const a = hexANumeros(hexA);
+  const b = hexANumeros(hexB);
+  const [r, g, bl] = [0, 1, 2].map(i => Math.round(lerp(a[i], b[i], t)));
+  return `rgb(${r},${g},${bl})`;
+}
+
+// Mundo 1: anillo que se vacía como reloj de arena a medida que la
+// manzana se acerca a pudrirse.
+function dibujarAnilloMaduracion(cx, cy, r, progreso) {
+  const radio = r * 1.9;
+  const restante = 1 - progreso;
+  ctx.strokeStyle = "#f4f7f2";
+  ctx.lineWidth = Math.max(1, cell * 0.045);
+  ctx.beginPath();
+  ctx.arc(cx, cy, radio, -Math.PI / 2, -Math.PI / 2 + restante * Math.PI * 2);
+  ctx.stroke();
 }
 
 function drawSnakePart(part, isHead) {
@@ -427,7 +647,19 @@ function drawApple(apple) {
   const cx = apple.x * cell + cell / 2;
   const cy = apple.y * cell + cell / 2 + cell * 0.067;
   const r = cell * 0.3;
-  ctx.fillStyle = "#ed493b";
+
+  const madurando = world.madura && !apple.worm;
+  let colorCuerpo = "#ed493b";
+  let progreso = 0;
+  if (madurando) {
+    progreso = Math.min(1, (tickCount - apple.bornTick) / world.maduraActual);
+    colorCuerpo = mezclarColor("#ed493b", "#6b4327", progreso);
+    dibujarAnilloMaduracion(cx, cy, r, progreso);
+  }
+
+  const parpadeo = madurando && progreso >= 0.8 && Math.floor(tickCount / 4) % 2 === 0;
+  ctx.globalAlpha = parpadeo ? 0.55 : 1;
+  ctx.fillStyle = colorCuerpo;
   ctx.beginPath();
   ctx.arc(cx - cell * 0.167, cy, r, 0, Math.PI * 2);
   ctx.arc(cx + cell * 0.167, cy, r, 0, Math.PI * 2);
@@ -437,6 +669,7 @@ function drawApple(apple) {
   ctx.beginPath();
   ctx.ellipse(cx + cell * 0.233, cy - cell * 0.433, cell * 0.2, cell * 0.1, -.5, 0, Math.PI * 2);
   ctx.fill();
+  ctx.globalAlpha = 1;
 
   if (apple.worm) {
     ctx.strokeStyle = "#e9b48d";
