@@ -31,6 +31,10 @@ const gameOverTitleEl = document.querySelector("#game-over-title");
 const finalScore = document.querySelector("#final-score");
 const restartButton = document.querySelector("#restart");
 const dpadButtons = document.querySelectorAll(".dpad-btn");
+const soundToggleButton = document.querySelector("#sound-toggle");
+const difficultySelectEl = document.querySelector("#difficulty-select");
+const difficultyLabelEl = document.querySelector("#difficulty-label");
+const pauseDifficultyEl = document.querySelector("#pause-difficulty");
 
 const CELLS = 20;
 
@@ -57,6 +61,12 @@ const WORLDS = [
     tip: "Jefe final: tres fases, dos arenas y manzanas en movimiento." }
 ]
 
+// tickMs de cada mundo tal como quedó calibrado (equivale a dificultad
+// "Difícil"). aplicarDificultad() lo reescala a partir de este valor
+// base, nunca al revés, para poder alternar de dificultad sin ir
+// perdiendo precisión con redondeos sucesivos.
+WORLDS.forEach(w => { w.tickMsBase = w.tickMs; });
+
 // Posiciones fijas y simétricas de las cajas-obstáculo. Nunca quedan
 // adyacentes a la serpiente inicial (fila y=10, columnas x=7..10).
 const OBSTACULOS_FIJOS = [
@@ -67,7 +77,14 @@ const VIDAS_POR_MUNDO = 3;
 
 const STORAGE_KEY_MUNDO_MAX = "snake-manzanas:mundoMax";
 const STORAGE_KEY_MEJOR_PUNTAJE = "snake-manzanas:mejorPuntaje";
+const STORAGE_KEY_DIFICULTAD = "snake-manzanas:dificultad";
+const STORAGE_KEY_MUTE = "snake-manzanas:mute";
 const MODO_PRUEBAS = true;
+
+// "Difícil" conserva el tickMs original de cada mundo. "Normal" lo
+// alarga el mismo porcentaje en los 4 mundos y en el jefe, así la
+// relación de velocidad entre mundos no cambia con la dificultad.
+const DIFICULTAD_MULTIPLICADOR = { normal: 1.175, dificil: 1 };
 
 // localStorage puede fallar (Safari bajo file://, modo privado, etc.):
 // el progreso se degrada a solo-memoria en vez de romper el juego.
@@ -112,6 +129,10 @@ let worldIndex = 0;
 let world = WORLDS[worldIndex];
 let mundoMax = MODO_PRUEBAS ? WORLDS.length : leerStorage(STORAGE_KEY_MUNDO_MAX, 1);
 let mejorPuntaje = leerStorage(STORAGE_KEY_MEJOR_PUNTAJE, 0);
+// "dificil" como default conserva el comportamiento previo a este
+// cambio para quien ya tenía progreso guardado.
+let dificultad = leerStorage(STORAGE_KEY_DIFICULTAD, "dificil");
+let muted = leerStorage(STORAGE_KEY_MUTE, false);
 
 let snake;
 let direction;
@@ -137,6 +158,140 @@ let gusano = null;
 let plaga = null;
 let jefe = null;
 let tickCount = 0;
+
+// ===================== AUDIO =====================
+// Todo el sonido sale de Web Audio API generado por código (osciladores
+// + nodos de ganancia): sin archivos externos, sin licencias, sin peso
+// en el repo. audioCtx se crea/reanuda recién en la primera interacción
+// real (ver reanudarAudioSiHaceFalta), porque los navegadores bloquean
+// el autoplay. Si el navegador no soporta o bloquea Web Audio, audioCtx
+// se queda en null y todas las funciones de sonido no hacen nada: el
+// juego sigue funcionando igual, solo mudo.
+let audioCtx = null;
+let masterGain = null; // controla el mute general
+let musicGain = null;  // controla el volumen de la música (para pausa/game over)
+let sfxGain = null;
+let musicaTimer = null;
+let musicaPasoActual = 0;
+let musicaBaseFreq = 220;
+const MUSICA_MELODIA = [0, 4, 7, 4]; // semitonos relativos: arpegio de 4 notas
+const MUSICA_BASES_POR_MUNDO = [220, 233.08, 246.94, 261.63]; // sube medio tono por mundo
+
+function inicializarAudio() {
+  if (audioCtx) return;
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return;
+  audioCtx = new AudioCtx();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = muted ? 0 : 1;
+  masterGain.connect(audioCtx.destination);
+  musicGain = audioCtx.createGain();
+  musicGain.gain.value = 1;
+  musicGain.connect(masterGain);
+  sfxGain = audioCtx.createGain();
+  sfxGain.gain.value = 1;
+  sfxGain.connect(masterGain);
+}
+
+function reanudarAudioSiHaceFalta() {
+  if (!audioCtx) inicializarAudio();
+  if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+}
+
+// Nota corta con envolvente (ataque rápido, caída exponencial). Base de
+// todos los efectos y de cada nota de la música.
+function reproducirTono({ freq, duracion = 0.12, tipo = "sine", volumen = 0.2, deslizarA = null, retardo = 0, destino = null }) {
+  if (!audioCtx || muted) return;
+  const salida = destino || sfxGain;
+  const t0 = audioCtx.currentTime + retardo;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = tipo;
+  osc.frequency.setValueAtTime(freq, t0);
+  if (deslizarA) osc.frequency.exponentialRampToValueAtTime(Math.max(1, deslizarA), t0 + duracion);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(volumen, t0 + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duracion);
+  osc.connect(gain);
+  gain.connect(salida);
+  osc.start(t0);
+  osc.stop(t0 + duracion + 0.03);
+}
+
+function sfxComerSana() {
+  reproducirTono({ freq: 700, deslizarA: 1050, duracion: 0.1, tipo: "square", volumen: 0.22 });
+}
+// Más grave y disonante: dos osciladores desafinados entre sí (baten al
+// sonar juntos) descendiendo en tono.
+function sfxComerPodrida() {
+  reproducirTono({ freq: 180, deslizarA: 90, duracion: 0.22, tipo: "sawtooth", volumen: 0.18 });
+  reproducirTono({ freq: 165, deslizarA: 82, duracion: 0.22, tipo: "sawtooth", volumen: 0.12 });
+}
+function sfxPerderVida() {
+  reproducirTono({ freq: 320, deslizarA: 70, duracion: 0.4, tipo: "sawtooth", volumen: 0.24 });
+}
+function sfxDerrotarJefe() {
+  [440, 554.37, 659.25, 880].forEach((freq, i) => {
+    reproducirTono({ freq, duracion: 0.18, tipo: "square", volumen: 0.22, retardo: i * 0.12 });
+  });
+}
+function sfxEntrada() {
+  reproducirTono({ freq: 523.25, deslizarA: 784, duracion: 0.16, tipo: "triangle", volumen: 0.2 });
+}
+// Tick suave en cada cambio de dirección: volumen bajo a propósito para
+// no cansar en partidas largas.
+function sfxMovimiento() {
+  reproducirTono({ freq: 520, duracion: 0.035, tipo: "sine", volumen: 0.05 });
+}
+
+function frecuenciaDesdeSemitonos(base, semitonos) {
+  return base * Math.pow(2, semitonos / 12);
+}
+
+function reproducirNotaMusica() {
+  if (!audioCtx || muted) return;
+  const semitonos = MUSICA_MELODIA[musicaPasoActual % MUSICA_MELODIA.length];
+  reproducirTono({
+    freq: frecuenciaDesdeSemitonos(musicaBaseFreq, semitonos),
+    duracion: 0.32, tipo: "triangle", volumen: 0.5, destino: musicGain
+  });
+  musicaPasoActual++;
+}
+
+// Reinicia el loop de música con un tono base ligeramente distinto por
+// mundo (MUSICA_BASES_POR_MUNDO), para que el cambio entre mundos se
+// note sin componer una melodía nueva por cada uno.
+function iniciarMusicaFondo() {
+  if (!audioCtx || musicaTimer) return;
+  musicaBaseFreq = MUSICA_BASES_POR_MUNDO[worldIndex % MUSICA_BASES_POR_MUNDO.length];
+  musicaPasoActual = 0;
+  musicGain.gain.setTargetAtTime(1, audioCtx.currentTime, 0.01);
+  reproducirNotaMusica();
+  musicaTimer = setInterval(reproducirNotaMusica, 380);
+}
+function detenerMusicaFondo() {
+  if (musicaTimer) { clearInterval(musicaTimer); musicaTimer = null; }
+}
+function bajarVolumenMusica() {
+  if (musicGain && audioCtx) musicGain.gain.setTargetAtTime(0.12, audioCtx.currentTime, 0.25);
+}
+function restaurarVolumenMusica() {
+  if (musicGain && audioCtx) musicGain.gain.setTargetAtTime(1, audioCtx.currentTime, 0.25);
+}
+
+function actualizarBotonSonido() {
+  if (!soundToggleButton) return;
+  soundToggleButton.textContent = muted ? "🔇" : "🔊";
+  soundToggleButton.setAttribute("aria-pressed", String(muted));
+}
+function alternarSonido() {
+  reanudarAudioSiHaceFalta();
+  muted = !muted;
+  if (masterGain) masterGain.gain.value = muted ? 0 : 1;
+  escribirStorage(STORAGE_KEY_MUTE, muted);
+  actualizarBotonSonido();
+}
+// ===================================================
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
@@ -210,6 +365,7 @@ function entrarMundo(index) {
   cosecha = 0;
   vidas = VIDAS_POR_MUNDO;
   prepararTablero();
+  iniciarMusicaFondo();
 }
 
 function esZonaSeguraDeRespawn(pos) {
@@ -255,6 +411,7 @@ function respawnEnMundoActual() {
     reubicarObstaculosParaRespawn(guardados);
     resizeCanvas();
   }
+  restaurarVolumenMusica();
 }
 
 function guardarProgreso() {
@@ -267,6 +424,28 @@ function registrarPuntaje() {
     mejorPuntaje = score;
     guardarProgreso();
   }
+}
+
+// Reescala tickMs de los 4 mundos (y del jefe) desde tickMsBase con el
+// mismo porcentaje, para no romper la relación de velocidad entre
+// mundos ni la calibración de cada uno.
+function aplicarDificultad(nueva) {
+  dificultad = DIFICULTAD_MULTIPLICADOR[nueva] ? nueva : "dificil";
+  WORLDS.forEach(w => { w.tickMs = Math.round(w.tickMsBase * DIFICULTAD_MULTIPLICADOR[dificultad]); });
+  escribirStorage(STORAGE_KEY_DIFICULTAD, dificultad);
+  renderSelectorDificultad();
+  actualizarEtiquetaDificultad();
+}
+function renderSelectorDificultad() {
+  if (!difficultySelectEl) return;
+  difficultySelectEl.querySelectorAll(".difficulty-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.dificultad === dificultad);
+  });
+}
+function actualizarEtiquetaDificultad() {
+  const texto = dificultad === "normal" ? "NORMAL" : "DIFÍCIL";
+  if (difficultyLabelEl) difficultyLabelEl.textContent = texto;
+  if (pauseDifficultyEl) pauseDifficultyEl.textContent = "Dificultad: " + texto;
 }
 
 function renderSelectorDeMundos() {
@@ -288,7 +467,9 @@ function renderSelectorDeMundos() {
 }
 
 function elegirMundo(index) {
+  reanudarAudioSiHaceFalta();
   entrarMundo(index);
+  sfxEntrada();
   startScreen.classList.add("hidden");
 }
 
@@ -371,7 +552,7 @@ function encolarDir(dirName) {
   if (world.jefeFinal && jefe && jefe.esperandoInicio) {
     jefe.esperandoInicio = false;
     const referenciaInicial = directionQueue.length ? directionQueue[directionQueue.length - 1] : direction;
-    if (dirName !== referenciaInicial && dirName !== OPPOSITE[referenciaInicial]) directionQueue.push(dirName);
+    if (dirName !== referenciaInicial && dirName !== OPPOSITE[referenciaInicial]) { directionQueue.push(dirName); sfxMovimiento(); }
     startGame();
     return;
   }
@@ -379,6 +560,7 @@ function encolarDir(dirName) {
   if (dirName === referencia || dirName === OPPOSITE[referencia]) return;
   if (directionQueue.length >= 2) return;
   directionQueue.push(dirName);
+  sfxMovimiento();
   startGame();
 }
 
@@ -396,12 +578,12 @@ function cancelLoop() {
     rafId = null;
   }
 }
-function pausarJuego(){if(!running||paused)return;paused=true;cancelLoop();pauseScreen.classList.remove("hidden");}
-function reanudarJuego(){if(!paused)return;paused=false;pauseScreen.classList.add("hidden");last=performance.now();acc=0;rafId=requestAnimationFrame(frame);}
+function pausarJuego(){if(!running||paused)return;paused=true;cancelLoop();bajarVolumenMusica();pauseScreen.classList.remove("hidden");}
+function reanudarJuego(){if(!paused)return;paused=false;pauseScreen.classList.add("hidden");restaurarVolumenMusica();last=performance.now();acc=0;rafId=requestAnimationFrame(frame);}
 function alternarPausa(){if(paused)reanudarJuego();else pausarJuego();}
 function volverAlSelectorDeMundos(){
   cancelLoop();running=false;paused=false;directionQueue=[];pauseScreen.classList.add("hidden");
-  bossVictoryScreen.classList.add("hidden");renderSelectorDeMundos();startScreen.classList.remove("hidden");
+  bossVictoryScreen.classList.add("hidden");detenerMusicaFondo();renderSelectorDeMundos();startScreen.classList.remove("hidden");
 }
 
 function frame(now) {
@@ -616,10 +798,13 @@ function update() {
   if(eaten.worm&&!dominioInfinito){
     const antes=snake.length-1;snake.length=Math.max(2,Math.ceil(antes/2));
     score=Math.max(0,score-5);cosecha=Math.max(0,cosecha-1);
+    sfxComerPodrida();
   }else if(dominioInfinito){
     score+=10;
+    sfxComerSana();
   }else{
     score+=world.jefeFinal?25:10;cosecha++;if(world.jefeFinal)golpearJefe();
+    sfxComerSana();
   }
   apretar(world,cosecha);
   if(dominioInfinito&&snake.length>=CELLS*CELLS)return completarVictoriaFinal();
@@ -634,7 +819,7 @@ function iniciarDestruccionJefe(){
   jefe.destruccionInicio=tickCount;
   jefe.destruccionHasta=tickCount+Math.round(2800/world.tickMs);
   jefe.restos=gusano?gusano.segments.map(x=>({...x})):[];
-  gusano=null;obstaculos=[];trail.clear();updateHud();
+  gusano=null;obstaculos=[];trail.clear();sfxDerrotarJefe();updateHud();
 }
 function iniciarDominioInfinito(){
   jefe.estado="infinito";jefe.fase=4;jefe.mapa=1;jefe.esperandoInicio=true;
@@ -663,6 +848,7 @@ function reiniciarDesdeElHuerto(){
 }
 function endGame(){
   running=false;directionQueue=[];vidas--;
+  sfxPerderVida();bajarVolumenMusica();
   if(vidas>0){
     gameOverTitleEl.textContent="OUCH!";
     finalScore.textContent="Vida perdida - "+vidas+(vidas===1?" vida restante":" vidas restantes");
@@ -671,6 +857,7 @@ function endGame(){
     registrarPuntaje();gameOverTitleEl.textContent="FIN DE LA CAMPANA";
     finalScore.textContent="Te quedaste sin vidas. Vuelves al inicio.";
     restartButton.textContent="VOLVER AL INICIO";
+    detenerMusicaFondo();
   }
   updateHud();gameOverScreen.classList.remove("hidden");
 }
@@ -1109,8 +1296,16 @@ pauseRestartButton.addEventListener("click",()=>entrarMundo(worldIndex));
 pauseWorldsButton.addEventListener("click",volverAlSelectorDeMundos);
 transitionContinueBtn.addEventListener("click",avanzarMundo);
 bossVictoryWorldsButton.addEventListener("click",volverAlSelectorDeMundos);
+if (soundToggleButton) soundToggleButton.addEventListener("click", alternarSonido);
+if (difficultySelectEl) {
+  difficultySelectEl.querySelectorAll(".difficulty-btn").forEach(btn => {
+    btn.addEventListener("click", () => aplicarDificultad(btn.dataset.dificultad));
+  });
+}
 
 new ResizeObserver(resizeCanvas).observe(boardCard);
 
 renderSelectorDeMundos();
+aplicarDificultad(dificultad);
+actualizarBotonSonido();
 entrarMundo(0);

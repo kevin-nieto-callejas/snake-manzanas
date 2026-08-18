@@ -19,6 +19,8 @@
       <p class="stat" title="Cosecha"><span class="stat-ico">🍎</span><strong id="harvest">0/0</strong></p>
       <p class="stat" title="Vidas"><span class="stat-ico">❤</span><strong id="lives">3</strong></p>
       <p class="stat" title="Puntos"><span class="stat-ico">★</span><strong id="score">0</strong></p>
+      <p class="stat" title="Dificultad"><span class="stat-ico">⚙</span><strong id="difficulty-label">DIFÍCIL</strong></p>
+      <button id="sound-toggle" class="sound-btn" type="button" title="Sonido" aria-label="Silenciar o activar el sonido" aria-pressed="false">🔊</button>
     </section>
 
     <section id="boss-meter" class="boss-meter hidden" aria-label="Progreso del mundo final">
@@ -33,6 +35,10 @@
       <div id="start-screen" class="overlay">
         <div class="overlay-panel">
           <h2>ELIGE TU MUNDO</h2>
+          <div class="difficulty-select" id="difficulty-select" role="group" aria-label="Dificultad">
+            <button type="button" class="difficulty-btn" data-dificultad="normal">NORMAL</button>
+            <button type="button" class="difficulty-btn" data-dificultad="dificil">DIFÍCIL</button>
+          </div>
           <div class="world-select" id="world-select"></div>
           <p class="hint">Modo de pruebas: todos los mundos están disponibles</p>
           <p class="best-score">Mejor puntaje: <strong id="best-score">0</strong></p>
@@ -44,6 +50,7 @@
           <p class="eyebrow">JUEGO EN PAUSA</p>
           <h2>PAUSA</h2>
           <p>Elige cómo quieres continuar.</p>
+          <p class="pause-difficulty" id="pause-difficulty">Dificultad: DIFÍCIL</p>
           <div class="pause-actions">
             <button id="pause-resume" type="button">CONTINUAR</button>
             <button id="pause-restart" class="secondary-btn" type="button">REINICIAR MUNDO</button>

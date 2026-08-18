@@ -56,6 +56,21 @@ h1 span { color: #91cc3a; }
 .stat-ico { font-size: .95em; }
 .scoreboard strong { color: var(--green); }
 
+.sound-btn {
+  margin-left: auto;
+  padding: 5px 11px;
+  border: 2px solid var(--green-dark);
+  border-radius: 6px;
+  background: #0e1c2b;
+  color: var(--green);
+  font-size: 1rem;
+  line-height: 1;
+  box-shadow: none;
+}
+.sound-btn:hover { filter: brightness(1.15); transform: none; }
+.sound-btn:active { transform: translateY(1px); box-shadow: none; }
+.sound-btn[aria-pressed="true"] { color: #6b7686; border-color: #2a3646; filter: grayscale(1); }
+
 .boss-meter {
   width: min(92vw, 70dvh);
   min-height: 42px;
@@ -163,6 +178,37 @@ kbd {
   color: var(--text);
   background: #142235;
   font: inherit;
+}
+
+.difficulty-select {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.difficulty-btn {
+  padding: 9px 8px;
+  border: 2px solid var(--green-dark);
+  border-radius: 6px;
+  background: #0e1c2b;
+  color: var(--text);
+  font: 700 .78rem "Courier New", monospace;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #17301a;
+}
+.difficulty-btn:hover { filter: brightness(1.15); }
+.difficulty-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #17301a; }
+.difficulty-btn.active {
+  color: #08111c;
+  background: var(--green);
+  border-color: #c9eb53;
+}
+
+.pause-difficulty {
+  margin: -10px 0 6px !important;
+  font-size: .78rem;
+  color: #b8c6d5;
 }
 
 .world-select {

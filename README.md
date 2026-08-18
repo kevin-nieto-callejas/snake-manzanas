@@ -14,6 +14,33 @@ manzanas podridas y un jefe final.
 - **Esc:** pausar la partida. Esc no reanuda.
 - **Pantallas táctiles:** deslizar sobre el tablero.
 - **Pantallas pequeñas:** aparece un control direccional táctil.
+- **Botón de sonido (marcador):** silencia o reactiva todo el audio. El
+  estado se recuerda entre partidas.
+
+## Dificultad
+
+Desde la pantalla de inicio se elige **Normal** o **Difícil**, y la
+elección se recuerda entre partidas:
+
+- **Difícil:** la velocidad de cada mundo tal como está calibrada.
+- **Normal:** todos los mundos y el jefe final quedan un poco más
+  lentos (mismo porcentaje en los 4), para una curva de entrada más
+  suave.
+
+La dificultad activa se muestra en el marcador y en la pantalla de
+pausa.
+
+## Sonido
+
+Todos los efectos y la música se generan por código con Web Audio API
+(osciladores y nodos de ganancia): no hay archivos de audio en el
+repositorio. Incluye sonido al comer manzanas (uno para sanas, otro
+más grave y disonante para las de gusano), un sonido al entrar a la
+partida, un tick suave en cada cambio de dirección, y una música de
+fondo minimalista en loop que baja de volumen en pausa y en las
+pantallas de game over, y cambia sutilmente de tono entre mundos. El
+audio se activa con la primera interacción del jugador (los
+navegadores bloquean el audio automático) y respeta el botón de mute.
 
 ## Los 4 mundos
 
