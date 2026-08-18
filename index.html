@@ -21,6 +21,12 @@
       <p class="stat" title="Puntos"><span class="stat-ico">★</span><strong id="score">0</strong></p>
     </section>
 
+    <section id="boss-meter" class="boss-meter hidden" aria-label="Progreso del mundo final">
+      <span id="boss-meter-label">VIDA DEL JEFE</span>
+      <div class="boss-meter-track"><div id="boss-meter-fill" class="boss-meter-fill"></div></div>
+      <strong id="boss-meter-value">18/18</strong>
+    </section>
+
     <div class="board-card">
       <canvas id="game" aria-label="Tablero de Snake"></canvas>
 
@@ -28,15 +34,22 @@
         <div class="overlay-panel">
           <h2>ELIGE TU MUNDO</h2>
           <div class="world-select" id="world-select"></div>
-          <p class="hint">Toca un mundo desbloqueado para empezar</p>
+          <p class="hint">Modo de pruebas: todos los mundos están disponibles</p>
           <p class="best-score">Mejor puntaje: <strong id="best-score">0</strong></p>
         </div>
       </div>
 
       <div id="pause-screen" class="overlay hidden" role="dialog" aria-modal="true">
-        <div>
+        <div class="pause-panel">
+          <p class="eyebrow">JUEGO EN PAUSA</p>
           <h2>PAUSA</h2>
-          <p>Toca para continuar</p>
+          <p>Elige cómo quieres continuar.</p>
+          <div class="pause-actions">
+            <button id="pause-resume" type="button">CONTINUAR</button>
+            <button id="pause-restart" class="secondary-btn" type="button">REINICIAR MUNDO</button>
+            <button id="pause-worlds" class="secondary-btn" type="button">ELEGIR MUNDO</button>
+          </div>
+          <p class="pause-shortcut">Pulsa <kbd>ESPACIO</kbd> para continuar</p>
         </div>
       </div>
 
@@ -46,6 +59,16 @@
           <h2 id="next-world-name">Siguiente mundo</h2>
           <p id="next-world-tip">Tip del mundo</p>
           <button id="transition-continue" type="button">CONTINUAR</button>
+        </div>
+      </div>
+
+      <div id="boss-victory" class="overlay hidden boss-victory" role="dialog" aria-modal="true">
+        <div class="boss-victory-panel">
+          <p class="eyebrow">JEFE FINAL DERROTADO</p>
+          <div class="victory-emblem" aria-hidden="true">&#9733;</div>
+          <h2>PLAGA DESTRUIDA</h2>
+          <p>Destruiste al jefe y llenaste las 400 casillas del Dominio Infinito.</p>
+          <button id="boss-victory-worlds" type="button">VOLVER A LOS MUNDOS</button>
         </div>
       </div>
 
