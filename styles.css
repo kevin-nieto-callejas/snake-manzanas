@@ -56,6 +56,51 @@ h1 span { color: #91cc3a; }
 .stat-ico { font-size: .95em; }
 .scoreboard strong { color: var(--green); }
 
+.boss-meter {
+  width: min(92vw, 70dvh);
+  min-height: 42px;
+  margin: 7px auto;
+  display: grid;
+  grid-template-columns: max-content 1fr max-content;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 13px;
+  border: 2px solid #ff7a18;
+  border-radius: 8px;
+  color: #ffd9a3;
+  background: linear-gradient(90deg, #170c08, #0b1119);
+  box-shadow: 0 0 16px rgba(255, 105, 18, .24);
+  font-size: .76rem;
+  font-weight: 700;
+}
+.boss-meter.hidden { display: none; }
+.boss-meter-track {
+  height: 12px;
+  overflow: hidden;
+  border: 2px solid #ff8a1c;
+  border-radius: 999px;
+  background: #080605;
+}
+.boss-meter-fill {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ffba35, #ff6918);
+  box-shadow: 0 0 10px #ff771c;
+  transition: width .25s ease;
+}
+.boss-meter.infinite {
+  border-color: #78b82f;
+  color: #dfff9f;
+  background: linear-gradient(90deg, #0b170c, #09131a);
+  box-shadow: 0 0 16px rgba(142, 214, 56, .2);
+}
+.boss-meter.infinite .boss-meter-track { border-color: #8ed638; }
+.boss-meter.infinite .boss-meter-fill {
+  background: linear-gradient(90deg, #75ad31, #b5ee45);
+  box-shadow: 0 0 10px #8ed638;
+}
+
 .board-card {
   position: relative;
   overflow: hidden;
@@ -90,6 +135,36 @@ canvas {
 .overlay p { margin: 0 0 22px; }
 .overlay-panel { max-width: 100%; }
 
+.pause-panel { width: min(100%, 360px); }
+
+.pause-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.secondary-btn {
+  color: var(--green);
+  background: #0e1c2b;
+  border-color: var(--green-dark);
+  box-shadow: 0 5px 0 #17301a;
+}
+
+.pause-shortcut {
+  margin: 20px 0 0 !important;
+  color: #b8c6d5;
+  font-size: .8rem;
+}
+
+kbd {
+  padding: 3px 7px;
+  border: 1px solid #52677d;
+  border-bottom-width: 3px;
+  border-radius: 4px;
+  color: var(--text);
+  background: #142235;
+  font: inherit;
+}
+
 .world-select {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -122,6 +197,30 @@ canvas {
 
 .world-btn .world-btn-name { display: block; color: var(--green); }
 .world-btn.locked .world-btn-name { color: #6b7686; }
+.world-btn.boss-world {
+  grid-column: 1 / -1; position: relative; overflow: hidden;
+  border-color: #ff7a18; color: #ffe5bd;
+  background: linear-gradient(120deg,rgba(255,122,24,.2),transparent 38%),repeating-linear-gradient(135deg,#160d09 0 14px,#24130c 14px 28px);
+  box-shadow: 0 4px 0 #5f2409,0 0 20px rgba(255,99,12,.28);
+  animation: boss-menu-pulse 1.8s ease-in-out infinite;
+}
+.world-btn.boss-world::after {
+  content: "DESAFIO FINAL"; position:absolute; top:5px; right:-28px; width:105px; padding:2px 0;
+  transform:rotate(35deg); color:#140904; background:#ff9a26; font-size:.52rem;
+}
+.world-btn.boss-world .world-btn-name { color:#ffad36; font-size:.92rem; text-shadow:0 0 10px rgba(255,122,24,.75); }
+@keyframes boss-menu-pulse { 50% { border-color:#ffc04d; box-shadow:0 4px 0 #5f2409,0 0 28px rgba(255,99,12,.5); } }
+.boss-victory { background:radial-gradient(circle,rgba(255,119,18,.22),transparent 45%),rgba(3,3,5,.9); }
+.boss-victory-panel {
+  width:min(100%,430px); padding:26px 22px; border:2px solid #ff8a1c; border-radius:12px;
+  background:linear-gradient(145deg,#211008,#080707 68%);
+  box-shadow:0 0 38px rgba(255,104,12,.45),inset 0 0 24px rgba(255,144,33,.09);
+}
+.boss-victory .eyebrow { color:#ffc35a; }
+.boss-victory h2 { color:#ff8a1c; text-shadow:0 0 18px rgba(255,92,10,.7); }
+.victory-emblem { margin-bottom:8px; color:#ff8a1c; font-size:3.4rem; filter:drop-shadow(0 0 12px #ff6512); animation:victory-flame .7s ease-in-out infinite alternate; }
+@keyframes victory-flame { to { transform:translateY(-4px) scale(1.06); filter:drop-shadow(0 0 22px #ff9e28); } }
+
 
 .hint { font-size: .78rem; opacity: .85; }
 .best-score { font-size: .8rem; margin: 0; }
