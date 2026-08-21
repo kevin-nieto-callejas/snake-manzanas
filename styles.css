@@ -138,7 +138,8 @@ canvas {
   position: absolute;
   inset: 0;
   display: grid;
-  place-items: center;
+  place-items: safe center;
+  overflow-y: auto;
   padding: 20px;
   text-align: center;
   background: #030912b8;
@@ -304,46 +305,35 @@ button:active { transform: translateY(3px); box-shadow: 0 2px 0 #426f20; }
 .apple-icon i { position: absolute; right: -3px; top: 5px; color: #f2c4a0; font-size: .55rem; font-style: normal; text-shadow: 0 1px #4d1c16; }
 .keys { color: var(--green); font-size: 1.35rem; font-weight: 900; white-space: nowrap; }
 
-.dpad {
-  display: none;
-  grid-template-columns: repeat(3, 52px);
-  grid-template-rows: repeat(3, 52px);
-  gap: 6px;
-  justify-content: center;
-  margin: 14px auto 0;
-}
-
-.dpad-btn {
-  min-width: 44px;
-  min-height: 44px;
-  border: 2px solid var(--green-dark);
-  border-radius: 8px;
-  background: #0e1c2b;
-  color: var(--green);
-  font-size: 1.4rem;
-  font-weight: 900;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-
-.dpad-btn:active { background: var(--green-dark); }
-.dpad-up    { grid-area: 1 / 2 / 2 / 3; }
-.dpad-left  { grid-area: 2 / 1 / 3 / 2; }
-.dpad-right { grid-area: 2 / 3 / 3 / 4; }
-.dpad-down  { grid-area: 3 / 2 / 4 / 3; }
-
-@media (pointer: coarse), (max-width: 700px) {
-  .dpad { display: grid; }
-}
-
 @media (max-width: 600px) {
-  body { padding: 12px; }
-  .game-shell { display: flex; flex-direction: column; gap: 10px; }
-  header { margin-bottom: 0; }
-  .scoreboard { padding: 6px 10px; font-size: .68rem; gap: 2px 8px; }
-  .instructions { grid-template-columns: 1fr; padding: 10px 14px; }
+  body {
+    display: block;
+    padding: 12px;
+    min-height: 100dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .game-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    min-height: calc(100dvh - 24px);
+    height: auto;
+  }
+  header { margin-bottom: 0; flex: 0 0 auto; }
+  .scoreboard { padding: 6px 10px; font-size: .68rem; gap: 2px 8px; flex: 0 0 auto; }
+  .boss-meter { flex: 0 0 auto; }
+  /* El tablero deja de medirse en dvh fijo y pasa a ocupar lo que sobra
+     de alto después del header/marcador: así nunca se corta ni empuja
+     contenido fuera de la pantalla, sea cual sea el teléfono. */
+  .board-card {
+    flex: 0 0 auto;
+    width: min(94vw, 680px);
+    max-width: 100%;
+    align-self: center;
+  }
+  .instructions { grid-template-columns: 1fr; padding: 10px 14px; flex: 0 0 auto; }
   .instructions .keys { display: none; }
   .keys { text-align: center; }
   .eyebrow { font-size: .78rem; }

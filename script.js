@@ -30,7 +30,6 @@ const gameOverScreen = document.querySelector("#game-over");
 const gameOverTitleEl = document.querySelector("#game-over-title");
 const finalScore = document.querySelector("#final-score");
 const restartButton = document.querySelector("#restart");
-const dpadButtons = document.querySelectorAll(".dpad-btn");
 const soundToggleButton = document.querySelector("#sound-toggle");
 const difficultySelectEl = document.querySelector("#difficulty-select");
 const difficultyLabelEl = document.querySelector("#difficulty-label");
@@ -74,6 +73,9 @@ const OBSTACULOS_FIJOS = [
 ];
 
 const VIDAS_POR_MUNDO = 3;
+// Cada tanto puntaje se descuenta y se suma una vida (no aplica en el mundo
+// del jefe): 10 manzanas sanas para ganarla, ni regalado ni imposible.
+const UMBRAL_VIDA_EXTRA = 100;
 
 const STORAGE_KEY_MUNDO_MAX = "snake-manzanas:mundoMax";
 const STORAGE_KEY_MEJOR_PUNTAJE = "snake-manzanas:mejorPuntaje";
@@ -110,6 +112,8 @@ function escribirStorage(key, value) {
 // cualquier viewport y densidad de píxeles).
 let boardSize = 0;
 let cell = 0;
+let boardInset = 0;
+let canvasSize = 0;
 
 const DIR_VECTORS = {
   up: { x: 0, y: -1 },
@@ -174,7 +178,17 @@ let sfxGain = null;
 let musicaTimer = null;
 let musicaPasoActual = 0;
 let musicaBaseFreq = 220;
-const MUSICA_MELODIA = [0, 4, 7, 4]; // semitonos relativos: arpegio de 4 notas
+// Nivel de tensión de la música: 0 calma, 1 tensa (invasión del Huerto o
+// modo letal del gusano), 2 y 3 solo el jefe (una por cada cambio de fase).
+let nivelTension = 0;
+const MUSICA_MELODIA = [0, 4, 7, 4]; // nivel 0: arpegio mayor de 4 notas
+const MUSICAS_TENSION = [
+  MUSICA_MELODIA,
+  [0, 3, 6, 3],   // nivel 1: menor con tritono
+  [0, 3, 6, 9],   // nivel 2: acorde disminuido completo, más urgente
+  [0, 1, 6, 7]    // nivel 3: casi cromático, el más caótico
+];
+const TEMPOS_TENSION = [380, 230, 175, 130]; // ms entre notas por nivel
 const MUSICA_BASES_POR_MUNDO = [220, 233.08, 246.94, 261.63]; // sube medio tono por mundo
 
 function inicializarAudio() {
@@ -235,6 +249,28 @@ function sfxDerrotarJefe() {
     reproducirTono({ freq, duracion: 0.18, tipo: "square", volumen: 0.22, retardo: i * 0.12 });
   });
 }
+// Fanfarria de felicitación tras el golpe de derrota: arranca cuando ese
+// impacto ya se apagó, para no pisarlo.
+function sfxVictoriaJefe() {
+  [523.25, 659.25, 783.99, 1046.5, 1318.51].forEach((freq, i) => {
+    reproducirTono({ freq, duracion: 0.22, tipo: "triangle", volumen: 0.28, retardo: 0.55 + i * 0.11 });
+  });
+  reproducirTono({ freq: 1046.5, duracion: 0.5, tipo: "square", volumen: 0.2, retardo: 1.1 });
+}
+function sfxVidaExtra() {
+  [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+    reproducirTono({ freq, duracion: 0.14, tipo: "square", volumen: 0.22, retardo: i * 0.09 });
+  });
+}
+// "Pum" de impacto para cada cambio de fase del jefe: golpe grave con caída
+// seguido de un acorde disonante agudo, para que se sienta más terrorífico.
+function sfxCambioFaseJefe() {
+  reproducirTono({ freq: 95, deslizarA: 38, duracion: 0.5, tipo: "sawtooth", volumen: 0.34 });
+  reproducirTono({ freq: 70, deslizarA: 30, duracion: 0.5, tipo: "square", volumen: 0.24 });
+  [466.16, 493.88, 830.61].forEach((freq, i) => {
+    reproducirTono({ freq, duracion: 0.35, tipo: "sawtooth", volumen: 0.14, retardo: 0.05 + i * 0.03 });
+  });
+}
 function sfxEntrada() {
   reproducirTono({ freq: 523.25, deslizarA: 784, duracion: 0.16, tipo: "triangle", volumen: 0.2 });
 }
@@ -243,6 +279,23 @@ function sfxEntrada() {
 function sfxMovimiento() {
   reproducirTono({ freq: 520, duracion: 0.035, tipo: "sine", volumen: 0.05 });
 }
+// Click leve para botones de menú, pausa y game over.
+function sfxBoton() {
+  reproducirTono({ freq: 480, deslizarA: 640, duracion: 0.07, tipo: "triangle", volumen: 0.16 });
+}
+function reproducirClicMenu() {
+  reanudarAudioSiHaceFalta();
+  sfxBoton();
+}
+// Sonido apenas perceptible al pasar el mouse por un botón. No reanuda el
+// audioCtx (un hover no cuenta como gesto de usuario en varios navegadores):
+// si todavía no sonó nada, se queda callado hasta el primer click real.
+function sfxHover() {
+  reproducirTono({ freq: 900, duracion: 0.03, tipo: "sine", volumen: 0.05 });
+}
+function agregarSonidoHover(el) {
+  el.addEventListener("mouseenter", sfxHover);
+}
 
 function frecuenciaDesdeSemitonos(base, semitonos) {
   return base * Math.pow(2, semitonos / 12);
@@ -250,10 +303,14 @@ function frecuenciaDesdeSemitonos(base, semitonos) {
 
 function reproducirNotaMusica() {
   if (!audioCtx || muted) return;
-  const semitonos = MUSICA_MELODIA[musicaPasoActual % MUSICA_MELODIA.length];
+  const melodia = MUSICAS_TENSION[nivelTension];
+  const semitonos = melodia[musicaPasoActual % melodia.length];
   reproducirTono({
     freq: frecuenciaDesdeSemitonos(musicaBaseFreq, semitonos),
-    duracion: 0.32, tipo: "triangle", volumen: 0.5, destino: musicGain
+    duracion: nivelTension ? Math.max(0.14, 0.26 - nivelTension * 0.04) : 0.32,
+    tipo: nivelTension ? "sawtooth" : "triangle",
+    volumen: nivelTension ? Math.min(0.5, 0.36 + nivelTension * 0.05) : 0.5,
+    destino: musicGain
   });
   musicaPasoActual++;
 }
@@ -265,6 +322,7 @@ function iniciarMusicaFondo() {
   if (!audioCtx || musicaTimer) return;
   musicaBaseFreq = MUSICA_BASES_POR_MUNDO[worldIndex % MUSICA_BASES_POR_MUNDO.length];
   musicaPasoActual = 0;
+  nivelTension = 0;
   musicGain.gain.setTargetAtTime(1, audioCtx.currentTime, 0.01);
   reproducirNotaMusica();
   musicaTimer = setInterval(reproducirNotaMusica, 380);
@@ -277,6 +335,16 @@ function bajarVolumenMusica() {
 }
 function restaurarVolumenMusica() {
   if (musicGain && audioCtx) musicGain.gain.setTargetAtTime(1, audioCtx.currentTime, 0.25);
+}
+// Cambia el pulso de la música de fondo según el nivel de peligro (0 calma,
+// 1 invasión del Huerto o modo letal, 2-3 fases del jefe): melodía más
+// disonante y tempo más rápido a medida que sube el nivel.
+function actualizarTensionMusical(nivel) {
+  if (nivelTension === nivel) return;
+  nivelTension = nivel;
+  if (!musicaTimer) return;
+  clearInterval(musicaTimer);
+  musicaTimer = setInterval(reproducirNotaMusica, TEMPOS_TENSION[nivelTension]);
 }
 
 function actualizarBotonSonido() {
@@ -309,15 +377,19 @@ function apretar(w, cosechaActual) {
 }
 
 function resizeCanvas() {
-  const rect = boardCard.getBoundingClientRect();
+  // Reserva unos pixeles dentro del canvas para que la primera y la ultima
+  // fila no queden ocultas bajo el borde en navegadores moviles.
+  const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
   const size = Math.floor(Math.min(rect.width, rect.height));
   if (size <= 0) return;
-  canvas.width = size * dpr;
-  canvas.height = size * dpr;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  boardSize = size;
-  cell = size / CELLS;
+  canvas.width = Math.round(size * dpr);
+  canvas.height = Math.round(size * dpr);
+  canvasSize = size;
+  boardInset = Math.max(4, Math.round(size * 0.009));
+  boardSize = size - boardInset * 2;
+  cell = boardSize / CELLS;
+  ctx.setTransform(dpr, 0, 0, dpr, boardInset * dpr, boardInset * dpr);
   draw();
 }
 
@@ -344,6 +416,7 @@ function prepararTablero() {
   trail = new Map();
   obstaculos = world.obstaculos ? OBSTACULOS_FIJOS.slice(0, world.obstaculos) : [];
   plaga = null;
+  actualizarTensionMusical(0);
   jefe = world.jefeFinal ? { fase: 1, mapa: 1, esperandoInicio: true, golpeHasta: 0 } : null;
   gusano = world.jefeFinal ? crearJefeFinal() : (world.gusanoCazador ? crearGusano() : null);
   apples = [];
@@ -426,6 +499,17 @@ function registrarPuntaje() {
   }
 }
 
+// Vida extra por puntaje: no aplica en el mundo del jefe (ahí el puntaje
+// mide golpes, no cosecha, y ya tiene su propia curva de riesgo).
+function revisarVidaExtra() {
+  if (world.jefeFinal) return;
+  while (score >= UMBRAL_VIDA_EXTRA) {
+    score -= UMBRAL_VIDA_EXTRA;
+    vidas++;
+    sfxVidaExtra();
+  }
+}
+
 // Reescala tickMs de los 4 mundos (y del jefe) desde tickMsBase con el
 // mismo porcentaje, para no romper la relación de velocidad entre
 // mundos ni la calibración de cada uno.
@@ -460,14 +544,14 @@ function renderSelectorDeMundos() {
     btn.innerHTML = unlocked
       ? '<span class="world-btn-name">' + (w.jefeFinal ? "&#9733; " : "") + w.nombre + "</span>" + meta
       : '<span class="world-btn-name">&#128274; ' + w.nombre + "</span>bloqueado";
-    if (unlocked) btn.addEventListener("click", () => elegirMundo(i));
+    if (unlocked) { btn.addEventListener("click", () => elegirMundo(i)); agregarSonidoHover(btn); }
     worldSelectEl.appendChild(btn);
   });
   bestScoreEl.textContent = mejorPuntaje;
 }
 
 function elegirMundo(index) {
-  reanudarAudioSiHaceFalta();
+  reproducirClicMenu();
   entrarMundo(index);
   sfxEntrada();
   startScreen.classList.add("hidden");
@@ -557,6 +641,14 @@ function encolarDir(dirName) {
     return;
   }
   const referencia = directionQueue.length ? directionQueue[directionQueue.length - 1] : direction;
+  // La primera flecha derecha también inicia la partida aunque coincida
+  // con la dirección inicial de la serpiente.
+  if (!running && dirName === referencia) {
+    directionQueue.push(dirName);
+    sfxMovimiento();
+    startGame();
+    return;
+  }
   if (dirName === referencia || dirName === OPPOSITE[referencia]) return;
   if (directionQueue.length >= 2) return;
   directionQueue.push(dirName);
@@ -633,6 +725,7 @@ function activarInvasionHuerto() {
       orden:index, objetivo:snake[0]
     }))
   };
+  actualizarTensionMusical(1);
   directionQueue=[];
   updateHud();
 }
@@ -671,7 +764,7 @@ function actualizarPlaga() {
       const sana=podridas[Math.floor(Math.random()*podridas.length)];
       sana.worm=false;sana.bornTick=tickCount;
     }
-    plaga=null;updateHud();return false;
+    plaga=null;actualizarTensionMusical(0);updateHud();return false;
   }
   updateHud();
   const pasoVelocidad=tickCount%5;
@@ -747,7 +840,7 @@ function actualizarGusano() {
     return hit;
   }
   if(!gusano.modoLetal&&apples.length&&apples.every(a=>a.worm)){
-    gusano.modoLetal=true;gusano.contador=0;gusano.ticksModoLetal=0;updateHud();
+    gusano.modoLetal=true;gusano.contador=0;gusano.ticksModoLetal=0;actualizarTensionMusical(1);updateHud();
   }
   if(gusano.modoLetal){
     gusano.ticksModoLetal++;
@@ -769,6 +862,7 @@ function golpearJefe() {
   jefe.fase=fase;jefe.esperandoInicio=true;gusano.contador=0;directionQueue=[];
   if(fase===2){jefe.mapa=2;activarMapaNucleo();}
   if(fase===3){const cola=gusano.segments[gusano.segments.length-1];for(let i=0;i<4;i++)gusano.segments.push({...cola});}
+  actualizarTensionMusical(fase);sfxCambioFaseJefe();
   updateHud();
 }
 
@@ -807,6 +901,7 @@ function update() {
     sfxComerSana();
   }
   apretar(world,cosecha);
+  revisarVidaExtra();
   if(dominioInfinito&&snake.length>=CELLS*CELLS)return completarVictoriaFinal();
   spawnApple(world.jefeFinal?false:eaten.worm);
   agregarObstaculosAleatorios(world.obstaculosPorManzana||0);
@@ -819,7 +914,7 @@ function iniciarDestruccionJefe(){
   jefe.destruccionInicio=tickCount;
   jefe.destruccionHasta=tickCount+Math.round(2800/world.tickMs);
   jefe.restos=gusano?gusano.segments.map(x=>({...x})):[];
-  gusano=null;obstaculos=[];trail.clear();sfxDerrotarJefe();updateHud();
+  gusano=null;obstaculos=[];trail.clear();actualizarTensionMusical(0);sfxDerrotarJefe();sfxVictoriaJefe();updateHud();
 }
 function iniciarDominioInfinito(){
   jefe.estado="infinito";jefe.fase=4;jefe.mapa=1;jefe.esperandoInicio=true;
@@ -862,6 +957,7 @@ function endGame(){
   updateHud();gameOverScreen.classList.remove("hidden");
 }
 restartButton.addEventListener("click",()=>{
+  reproducirClicMenu();
   gameOverScreen.classList.add("hidden");
   if(vidas<=0)reiniciarDesdeElHuerto();else respawnEnMundoActual();
 });
@@ -915,7 +1011,7 @@ function roundedRect(x, y, width, height, radius) {
 
 function draw() {
   if (!cell) return;
-  ctx.clearRect(0, 0, boardSize, boardSize);
+  ctx.clearRect(-boardInset, -boardInset, canvasSize, canvasSize);
   ctx.fillStyle = world.jefeFinal && jefe ? (jefe.mapa === 1 ? "#0d1017" : "#160b08") : "#07111d";
   ctx.fillRect(0, 0, boardSize, boardSize);
 
@@ -1269,15 +1365,18 @@ document.addEventListener("keydown",event=>{
   const dir=KEY_TO_DIR[event.key];if(!dir)return;event.preventDefault();encolarDir(dir);
 });
 
+// El swipe se escucha en toda la pantalla del juego (game-shell), no solo
+// dentro del canvas: en celular es incómodo limitar el gesto al tablero.
+const zonaTactil = boardCard.closest(".game-shell");
 let touchStartX = 0;
 let touchStartY = 0;
-canvas.addEventListener("touchstart", event => {
+zonaTactil.addEventListener("touchstart", event => {
   const t = event.changedTouches[0];
   touchStartX = t.clientX;
   touchStartY = t.clientY;
 }, { passive: true });
 
-canvas.addEventListener("touchend", event => {
+zonaTactil.addEventListener("touchend", event => {
   const t = event.changedTouches[0];
   const dx = t.clientX - touchStartX;
   const dy = t.clientY - touchStartY;
@@ -1286,20 +1385,18 @@ canvas.addEventListener("touchend", event => {
   else encolarDir(dy > 0 ? "down" : "up");
 }, { passive: true });
 
-dpadButtons.forEach(btn => {
-  btn.addEventListener("click", () => encolarDir(btn.dataset.dir));
-});
-
 document.addEventListener("visibilitychange",()=>{if(document.hidden)pausarJuego();});
-pauseResumeButton.addEventListener("click",reanudarJuego);
-pauseRestartButton.addEventListener("click",()=>entrarMundo(worldIndex));
-pauseWorldsButton.addEventListener("click",volverAlSelectorDeMundos);
-transitionContinueBtn.addEventListener("click",avanzarMundo);
-bossVictoryWorldsButton.addEventListener("click",volverAlSelectorDeMundos);
+pauseResumeButton.addEventListener("click",()=>{reproducirClicMenu();reanudarJuego();});
+pauseRestartButton.addEventListener("click",()=>{reproducirClicMenu();entrarMundo(worldIndex);});
+pauseWorldsButton.addEventListener("click",()=>{reproducirClicMenu();volverAlSelectorDeMundos();});
+transitionContinueBtn.addEventListener("click",()=>{reproducirClicMenu();avanzarMundo();});
+bossVictoryWorldsButton.addEventListener("click",()=>{reproducirClicMenu();volverAlSelectorDeMundos();});
+[pauseResumeButton, pauseRestartButton, pauseWorldsButton, transitionContinueBtn, bossVictoryWorldsButton, restartButton].forEach(agregarSonidoHover);
 if (soundToggleButton) soundToggleButton.addEventListener("click", alternarSonido);
 if (difficultySelectEl) {
   difficultySelectEl.querySelectorAll(".difficulty-btn").forEach(btn => {
-    btn.addEventListener("click", () => aplicarDificultad(btn.dataset.dificultad));
+    btn.addEventListener("click", () => { reproducirClicMenu(); aplicarDificultad(btn.dataset.dificultad); });
+    agregarSonidoHover(btn);
   });
 }
 
